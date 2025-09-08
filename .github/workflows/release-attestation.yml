@@ -76,3 +76,36 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-name: ${{ env.IMAGE_PREFIX }}/${{ matrix.service.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SBOM for built image
+        uses: anchore/sbom-action@v0.20.5
+        with:
+          image: ${{ env.IMAGE_PREFIX }}/${{ matrix.service.name }}@${{ steps.push.outputs.digest }}
+          format: cyclonedx-json
+          output-file: ${{ matrix.service.name }}-sbom.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@v3
+        with:
+          subject-name: ${{ env.IMAGE_PREFIX }}/${{ matrix.service.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          sbom-path: ${{ matrix.service.name }}-sbom.cdx.json
+          push-to-registry: true
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service.name }}-sbom-${{ github.run_id }}
+          path: ${{ matrix.service.name }}-sbom.cdx.json
